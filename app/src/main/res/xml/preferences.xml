@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <EditTextPreference
+        android:key="xmlDumpUrl"
+        android:defaultValue="https://dumps.wikimedia.org/dewiki/latest/dewiki-latest-pages-articles.xml.bz2"
+        android:inputType="textUri"
+        android:selectAllOnFocus="true"
+        android:singleLine="true"
+        android:summary="XML dump URL"
+        android:title="Wikipedia XML dump URL"/>
+</PreferenceScreen>

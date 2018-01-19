@@ -1,0 +1,5 @@
+<fragment xmlns:android="http://schemas.android.com/apk/res/android"
+          android:id="@+id/fragment"
+          android:name="de.m3y3r.offlinewiki.frontend.SettingsFragment"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"/>
