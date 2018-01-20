@@ -14,6 +14,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.SearchView;
 
 import java.util.List;
@@ -28,6 +29,7 @@ import de.m3y3r.offlinewiki.utility.Downloader;
 public class SearchActivity extends Activity {
 
 	private TitleDatabase titleDatabase;
+	private Thread worker;
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
@@ -70,8 +72,10 @@ public class SearchActivity extends Activity {
 		// check if we have an xmldump file
 		String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
 
-		Runnable xmlStartupTask = new XmlDumpStartupTask(xmlDumpUrl, titleDatabase, getApplicationContext());
-		new Thread(xmlStartupTask).start();
+		ProgressBar progessBar = findViewById(R.id.progressBar);
+		Runnable xmlStartupTask = new XmlDumpStartupTask(xmlDumpUrl, titleDatabase, getApplicationContext(), progessBar);
+		worker = new Thread(xmlStartupTask);
+		worker.start();
 
 		SearchView searchView = (SearchView) findViewById(R.id.search);
 		SearchView.OnQueryTextListener qtl = new SearchView.OnQueryTextListener() {
@@ -102,6 +106,21 @@ public class SearchActivity extends Activity {
 
 		searchView.setOnQueryTextListener(qtl);
 	}
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+
+		TitleDatabase db  = titleDatabase;
+		titleDatabase = null;
+		if(db != null)
+			db.close();
+
+		Thread w = worker;
+		worker = null;
+		if(w != null)
+			w.interrupt();
+	}
 }
 
 class XmlDumpStartupTask implements Runnable {
@@ -109,11 +128,13 @@ class XmlDumpStartupTask implements Runnable {
 	private final String xmlDumpUrlString;
 	private final TitleDatabase db;
 	private final Context ctx;
+	private final ProgressBar progessBar;
 
-	public XmlDumpStartupTask(String xmlDumpUrlString, TitleDatabase db, Context ctx) {
+	public XmlDumpStartupTask(String xmlDumpUrlString, TitleDatabase db, Context ctx, ProgressBar progessBar) {
 		this.xmlDumpUrlString = xmlDumpUrlString;
 		this.db = db;
 		this.ctx = ctx;
+		this.progessBar = progessBar;
 	}
 
 	@Override
@@ -127,11 +148,11 @@ class XmlDumpStartupTask implements Runnable {
 		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 		try {
 
-			Downloader downloader = new Downloader(ctx, db, xmlDumpEntity, xmlDumpUrlString);
+			Downloader downloader = new Downloader(ctx, db, xmlDumpEntity, xmlDumpUrlString, progessBar);
 			downloader.run();
 
 			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
-			Indexer indexer = new Indexer(db, xmlDumpEntity);
+			Indexer indexer = new Indexer(db, xmlDumpEntity, progessBar);
 			indexer.run();
 
 		} catch (java.io.IOException e) {

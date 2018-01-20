@@ -4,6 +4,7 @@ package de.m3y3r.offlinewiki.utility;
 import android.content.Context;
 import android.net.Uri;
 import android.os.StatFs;
+import android.widget.ProgressBar;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -25,17 +26,19 @@ public class Downloader  implements Runnable {
 
 	private final TitleDatabase db;
 	private final URL url;
+	private ProgressBar progessBar;
 	private final XmlDumpEntity xmlDumpEntity;
 	private final Context ctx;
 
 	private String etag;
 	private long lenRemote;
 
-	public Downloader(Context ctx, TitleDatabase db, XmlDumpEntity xmlDumpEntity, String xmlDumpUrl) throws MalformedURLException {
+	public Downloader(Context ctx, TitleDatabase db, XmlDumpEntity xmlDumpEntity, String xmlDumpUrl, ProgressBar progessBar) throws MalformedURLException {
 		this.ctx = ctx;
 		this.db = db;
 		this.xmlDumpEntity = xmlDumpEntity;
 		this.url = new URL(xmlDumpUrl);
+		this.progessBar = progessBar;
 	}
 
 	private void getEtagAndSize() {
@@ -80,8 +83,13 @@ public class Downloader  implements Runnable {
 
 	@Override
 	public void run() {
+
+			progessBar.post( () -> progessBar.setActivated(false));
+
 			if(this.xmlDumpEntity != null && this.xmlDumpEntity.isDownloadFinished())
 				return;
+
+			progessBar.post( () -> { progessBar.setActivated(true); progessBar.setIndeterminate(false); });
 
 			// get remote size and etag
 			getEtagAndSize();
@@ -106,6 +114,8 @@ public class Downloader  implements Runnable {
 		if(dumpFile.length() == lenRemote) {
 			xmlDumpEntity.setDownloadFinished(true);
 			db.getDao().updateXmlDumpEntity(xmlDumpEntity);
+
+			progessBar.post( () -> progessBar.setActivated(false));
 			return;
 		}
 
@@ -118,19 +128,29 @@ public class Downloader  implements Runnable {
 				outputStream.seek(lenCommited);
 			}
 			con.connect();
-			download(con, outputStream);
+			download(con, outputStream, lenRemote, dumpFile);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private void download(HttpURLConnection con, OutputStream o) throws IOException {
+	private void download(HttpURLConnection con, OutputStream o, long lenRemote, SplitFile dumpFile) throws IOException {
+		long c = 0, size = (long) Math.pow(2, 22);
+
 		try (BufferedInputStream in = new BufferedInputStream(con.getInputStream());
 			 BufferedOutputStream out = new BufferedOutputStream(o)) {
 			int b = in.read();
 			while(b >= 0) {
+				if(Thread.interrupted())
+					return;
+
 				out.write(b);
 				b = in.read();
+				c++;
+
+				if(c % size == 0) {
+					progessBar.post(() -> progessBar.setProgress((int) ((dumpFile.length()) / (lenRemote / 100))));
+				}
 			}
 		}
 	}

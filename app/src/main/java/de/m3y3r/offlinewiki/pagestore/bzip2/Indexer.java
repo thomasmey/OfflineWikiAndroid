@@ -4,6 +4,8 @@
 
 package de.m3y3r.offlinewiki.pagestore.bzip2;
 
+import android.widget.ProgressBar;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,14 +49,16 @@ public class Indexer implements Runnable {
 	private int titlesIdx;
 	private long offsetBlockUncompressedPosition;
 	private long offsetBlockPositionInBits;
+	private ProgressBar progressBar;
 
-	public Indexer(TitleDatabase db, XmlDumpEntity xmlDumpEntity) {
+	public Indexer(TitleDatabase db, XmlDumpEntity xmlDumpEntity, ProgressBar progressBar) {
 		if(db == null || xmlDumpEntity == null) throw new IllegalArgumentException();
 
 		SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
 		this.inputFile = dumpFile;
 		this.xmlDumpEntity = xmlDumpEntity;
 		this.db = db;
+		this.progressBar = progressBar;
 
 		this.logger = Logger.getLogger(Config.LOGGER_NAME);
 		this.bzip2Blocks = new TreeMap<>();
@@ -64,8 +68,20 @@ public class Indexer implements Runnable {
 	// and the parser state...
 	public void run() {
 
+		progressBar.post( () -> progressBar.setActivated(false));
+
 		if(xmlDumpEntity.isIndexFinished())
 			return;
+
+		int progressBarMax = 1000;
+
+		progressBar.post( () -> {
+			progressBar.setActivated(true);
+			progressBar.setIndeterminate(false);
+			progressBar.setMax(progressBarMax);
+		});
+
+		long fileSize = inputFile.length();
 
 		Map<Integer,StringBuilder> levelNameMap = new HashMap<>();
 		int level = 0;
@@ -92,11 +108,13 @@ public class Indexer implements Runnable {
 					long blockUncompressedPosition = ((CompressorInputStream) e.getSource()).getBytesRead() + offsetBlockUncompressedPosition;
 					long blockPositionInBits = e.getBitsProcessed() + offsetBlockPositionInBits;
 					if(e.getEventCounter() % 100 == 0) {
-						logger.log(Level.INFO,"Bzip2 block no. {2} at {0} uncompressed at {1}", new Object[] {blockPositionInBits / 8, blockUncompressedPosition, e.getEventCounter()});
+						logger.log(Level.INFO,"Bzip2 block no. {0} at {1} uncompressed at {2}", new Object[] {e.getEventCounter(), blockPositionInBits / 8, blockUncompressedPosition });
 					}
 					synchronized (bzip2Blocks) {
 						bzip2Blocks.put(blockUncompressedPosition, blockPositionInBits);
 					}
+					int percentFinished = (int) ((blockPositionInBits / 8) / (fileSize / progressBarMax));
+					progressBar.post(() -> progressBar.setProgress(percentFinished, true));
 				}
 			};
 			bZip2In.addCompressorEventListener(listener);
@@ -126,6 +144,8 @@ public class Indexer implements Runnable {
 			}
 
 			while(currentChar >= 0) {
+				if(Thread.interrupted())
+					return;
 
 				switch (currentMode) {
 				case 0: // characters
@@ -224,9 +244,7 @@ public class Indexer implements Runnable {
 					if(nextMode == 0 && level == 1) {
 						if(titleCount > 0 && titleCount % MAX_TITLES == 0) {
 							logger.log(Level.FINE,"Processed {0} pages", titleCount);
-							// FIXME: this MUST happen under the same transaction
-							commitIndex(db);
-							setRestartPosition(currentTagEndPos);
+							commitTitlesAndXmlDumpEntity(getTitles(), setRestartPosition(currentTagEndPos));
 						}
 					}
 				}
@@ -238,25 +256,29 @@ public class Indexer implements Runnable {
 			}
 
 			// store remaining buffer item
-			commitIndex(db);
 			xmlDumpEntity.setIndexFinished(true);
-			db.getDao().updateXmlDumpEntity(xmlDumpEntity);
+			commitTitlesAndXmlDumpEntity(getTitles(), xmlDumpEntity);
+
+			progressBar.post( () -> progressBar.setActivated(false));
 
 		} catch (IOException e) {
 			logger.log(Level.SEVERE, "failed!", e);
 		}
 	}
 
-	private void commitIndex(TitleDatabase db) {
-		if(titlesIdx < MAX_TITLES) // last commit case, can be smaller
-			titles = Arrays.copyOf(titles, titlesIdx);
-
-		db.getDao().insertAllTitleEntity(titles);
-
-		titlesIdx = 0;
+	private void commitTitlesAndXmlDumpEntity(TitleEntity[] titles, XmlDumpEntity xmlDumpEntity) {
+		db.getDao().insertTitlesAndXmlDumpEntity(xmlDumpEntity, titles);
 	}
 
-	private void setRestartPosition(long currentUncompressedPosition) throws IOException {
+	private TitleEntity[] getTitles() {
+		if(titlesIdx < MAX_TITLES) // last commit case, can be smaller
+			return Arrays.copyOf(titles, titlesIdx);
+
+		titlesIdx = 0;
+		return titles;
+	}
+
+	private XmlDumpEntity setRestartPosition(long currentUncompressedPosition) throws IOException {
 		long blockUncompressedPosition;
 		long blockPositionInBits;
 		synchronized (bzip2Blocks) {
@@ -274,7 +296,7 @@ public class Indexer implements Runnable {
 		xmlDumpEntity.setIndexBlockPositionInBits(blockPositionInBits);
 		xmlDumpEntity.setIndexBlockPositionUncompressed(blockUncompressedPosition);
 		xmlDumpEntity.setIndexPagePositionUncompressed(currentUncompressedPosition);
-		db.getDao().updateXmlDumpEntity(xmlDumpEntity);
+		return xmlDumpEntity;
 	}
 
 	private void addToIndex(String pageTitel, long currentTagUncompressedPosition) throws IOException {
