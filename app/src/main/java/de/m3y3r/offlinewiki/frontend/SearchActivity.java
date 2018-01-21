@@ -1,12 +1,18 @@
 package de.m3y3r.offlinewiki.frontend;
 
 import android.app.Activity;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.arch.persistence.room.Room;
-import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
+import android.os.PersistableBundle;
 import android.preference.PreferenceManager;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -20,16 +26,14 @@ import android.widget.SearchView;
 import java.util.List;
 
 import de.m3y3r.offlinewiki.R;
-import de.m3y3r.offlinewiki.pagestore.bzip2.Indexer;
 import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
-import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
-import de.m3y3r.offlinewiki.utility.Downloader;
+import de.m3y3r.offlinewiki.service.StartupJob;
 
 public class SearchActivity extends Activity {
 
+	private volatile static android.os.Handler handler;
 	private TitleDatabase titleDatabase;
-	private Thread worker;
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
@@ -67,15 +71,40 @@ public class SearchActivity extends Activity {
 		};
 		listView.setOnItemClickListener(listener);
 
-		// get db
-		titleDatabase = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
 		// check if we have an xmldump file
 		String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
 
-		ProgressBar progessBar = findViewById(R.id.progressBar);
-		Runnable xmlStartupTask = new XmlDumpStartupTask(xmlDumpUrl, titleDatabase, getApplicationContext(), progessBar);
-		worker = new Thread(xmlStartupTask);
-		worker.start();
+		ProgressBar progressBar = findViewById(R.id.progressBar);
+		progressBar.setVisibility(View.INVISIBLE);
+
+		JobScheduler jobScheduler = (JobScheduler) getApplicationContext().getSystemService(JOB_SCHEDULER_SERVICE);
+		PersistableBundle pb = new PersistableBundle();
+		pb.putString("xmlDumpUrlString", xmlDumpUrl);
+
+		JobInfo jobInfo = new JobInfo.Builder(1, new ComponentName(getApplicationContext(), StartupJob.class))
+				.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+				.setExtras(pb)
+				.build();
+		jobScheduler.schedule(jobInfo);
+
+		handler = new Handler(Looper.getMainLooper()) {
+			@Override
+			public void handleMessage(Message msg) {
+				if(msg.what != 1) // 1 == ProgressBar
+					return;
+
+				if (msg.arg2 == 1) {
+					progressBar.setVisibility(View.INVISIBLE);
+				} else if (msg.arg2 == 2) {
+					progressBar.setVisibility(View.VISIBLE);
+				}
+
+				progressBar.setProgress(msg.arg1);
+			}
+		};
+
+		// get db
+		titleDatabase = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
 
 		SearchView searchView = (SearchView) findViewById(R.id.search);
 		SearchView.OnQueryTextListener qtl = new SearchView.OnQueryTextListener() {
@@ -116,47 +145,15 @@ public class SearchActivity extends Activity {
 		if(db != null)
 			db.close();
 
-		Thread w = worker;
-		worker = null;
-		if(w != null)
-			w.interrupt();
-	}
-}
-
-class XmlDumpStartupTask implements Runnable {
-
-	private final String xmlDumpUrlString;
-	private final TitleDatabase db;
-	private final Context ctx;
-	private final ProgressBar progessBar;
-
-	public XmlDumpStartupTask(String xmlDumpUrlString, TitleDatabase db, Context ctx, ProgressBar progessBar) {
-		this.xmlDumpUrlString = xmlDumpUrlString;
-		this.db = db;
-		this.ctx = ctx;
-		this.progessBar = progessBar;
+		handler = null;
 	}
 
-	@Override
-	public void run() {
-
-		if(xmlDumpUrlString == null) {
-			throw new IllegalArgumentException();
-		}
-
-		// get entry from db
-		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
-		try {
-
-			Downloader downloader = new Downloader(ctx, db, xmlDumpEntity, xmlDumpUrlString, progessBar);
-			downloader.run();
-
-			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
-			Indexer indexer = new Indexer(db, xmlDumpEntity, progessBar);
-			indexer.run();
-
-		} catch (java.io.IOException e) {
-			e.printStackTrace();
+	public static void updateProgressBar(int progess, int visible) {
+		if(handler != null) {
+			Handler h = handler;
+			Message msg = h.obtainMessage(1, progess, visible);
+			msg.sendToTarget();
 		}
 	}
 }
+

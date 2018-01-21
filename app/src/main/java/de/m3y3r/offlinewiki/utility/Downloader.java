@@ -3,8 +3,6 @@ package de.m3y3r.offlinewiki.utility;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.StatFs;
-import android.widget.ProgressBar;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -14,11 +12,11 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 import de.m3y3r.offlinewiki.Config;
+import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 
@@ -26,19 +24,17 @@ public class Downloader  implements Runnable {
 
 	private final TitleDatabase db;
 	private final URL url;
-	private ProgressBar progessBar;
 	private final XmlDumpEntity xmlDumpEntity;
 	private final Context ctx;
 
 	private String etag;
 	private long lenRemote;
 
-	public Downloader(Context ctx, TitleDatabase db, XmlDumpEntity xmlDumpEntity, String xmlDumpUrl, ProgressBar progessBar) throws MalformedURLException {
+	public Downloader(Context ctx, TitleDatabase db, XmlDumpEntity xmlDumpEntity, String xmlDumpUrl) throws MalformedURLException {
 		this.ctx = ctx;
 		this.db = db;
 		this.xmlDumpEntity = xmlDumpEntity;
 		this.url = new URL(xmlDumpUrl);
-		this.progessBar = progessBar;
 	}
 
 	private void getEtagAndSize() {
@@ -77,45 +73,35 @@ public class Downloader  implements Runnable {
 	}
 
 	private String getBaseName(String etag) {
-		String baseName = etag.replaceAll("\"","") + "-" + Uri.parse(url.toExternalForm()).getLastPathSegment();
-		return baseName;
+		return etag.replaceAll("\"","") + "-" + Uri.parse(url.toExternalForm()).getLastPathSegment();
 	}
 
 	@Override
 	public void run() {
 
-			progessBar.post( () -> progessBar.setActivated(false));
+		// get remote size and etag
+		getEtagAndSize();
 
-			if(this.xmlDumpEntity != null && this.xmlDumpEntity.isDownloadFinished())
-				return;
-
-			progessBar.post( () -> { progessBar.setActivated(true); progessBar.setIndeterminate(false); });
-
-			// get remote size and etag
-			getEtagAndSize();
-
-			XmlDumpEntity xmlDumpEntity = this.xmlDumpEntity;
-			if(xmlDumpEntity == null) {
-				// create a new xml dump entity
-				File targetDirectory = getTargetDirectory(lenRemote);
-				xmlDumpEntity = new XmlDumpEntity();
-				xmlDumpEntity.setEtag(etag);
-				xmlDumpEntity.setUrl(url.toExternalForm());
-				xmlDumpEntity.setDirectory(targetDirectory.getAbsolutePath());
-				xmlDumpEntity.setBaseName(getBaseName(etag));
-				db.getDao().insertXmlDumpEntity(xmlDumpEntity);
-			} else {
-				if(!xmlDumpEntity.getEtag().equals(etag)) {
-					throw new IllegalStateException();
-				}
+		XmlDumpEntity xmlDumpEntity = this.xmlDumpEntity;
+		if(xmlDumpEntity == null) {
+			// create a new xml dump entity
+			File targetDirectory = getTargetDirectory(lenRemote);
+			xmlDumpEntity = new XmlDumpEntity();
+			xmlDumpEntity.setEtag(etag);
+			xmlDumpEntity.setUrl(url.toExternalForm());
+			xmlDumpEntity.setDirectory(targetDirectory.getAbsolutePath());
+			xmlDumpEntity.setBaseName(getBaseName(etag));
+			db.getDao().insertXmlDumpEntity(xmlDumpEntity);
+		} else {
+			if(!xmlDumpEntity.getEtag().equals(etag)) {
+				throw new IllegalStateException();
 			}
+		}
 
 		SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
 		if(dumpFile.length() == lenRemote) {
 			xmlDumpEntity.setDownloadFinished(true);
 			db.getDao().updateXmlDumpEntity(xmlDumpEntity);
-
-			progessBar.post( () -> progessBar.setActivated(false));
 			return;
 		}
 
@@ -149,7 +135,8 @@ public class Downloader  implements Runnable {
 				c++;
 
 				if(c % size == 0) {
-					progessBar.post(() -> progessBar.setProgress((int) ((dumpFile.length()) / (lenRemote / 100))));
+					int progess = (int) ((dumpFile.length()) / (lenRemote / 100));
+					SearchActivity.updateProgressBar(progess, 0);
 				}
 			}
 		}

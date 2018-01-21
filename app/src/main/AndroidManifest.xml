@@ -23,7 +23,8 @@
             android:label="@string/title_activity_setting">
         </activity>
 
-        <service android:name=".service.DownloadJobService"/>
+        <service android:name=".service.StartupJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <activity
             android:name=".frontend.ScrollingActivity"

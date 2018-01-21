@@ -4,6 +4,8 @@
 
 package de.m3y3r.offlinewiki.pagestore.bzip2;
 
+import android.os.Message;
+import android.view.View;
 import android.widget.ProgressBar;
 
 import java.io.File;
@@ -18,6 +20,7 @@ import java.util.logging.Logger;
 
 import de.m3y3r.offlinewiki.Config;
 import de.m3y3r.offlinewiki.Utf8Reader;
+import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
@@ -49,16 +52,14 @@ public class Indexer implements Runnable {
 	private int titlesIdx;
 	private long offsetBlockUncompressedPosition;
 	private long offsetBlockPositionInBits;
-	private ProgressBar progressBar;
 
-	public Indexer(TitleDatabase db, XmlDumpEntity xmlDumpEntity, ProgressBar progressBar) {
+	public Indexer(TitleDatabase db, XmlDumpEntity xmlDumpEntity) {
 		if(db == null || xmlDumpEntity == null) throw new IllegalArgumentException();
 
 		SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
 		this.inputFile = dumpFile;
 		this.xmlDumpEntity = xmlDumpEntity;
 		this.db = db;
-		this.progressBar = progressBar;
 
 		this.logger = Logger.getLogger(Config.LOGGER_NAME);
 		this.bzip2Blocks = new TreeMap<>();
@@ -67,19 +68,6 @@ public class Indexer implements Runnable {
 	// we need to do the XML parsing ourselves to get a connection between the current element file offset
 	// and the parser state...
 	public void run() {
-
-		progressBar.post( () -> progressBar.setActivated(false));
-
-		if(xmlDumpEntity.isIndexFinished())
-			return;
-
-		int progressBarMax = 1000;
-
-		progressBar.post( () -> {
-			progressBar.setActivated(true);
-			progressBar.setIndeterminate(false);
-			progressBar.setMax(progressBarMax);
-		});
 
 		long fileSize = inputFile.length();
 
@@ -113,8 +101,8 @@ public class Indexer implements Runnable {
 					synchronized (bzip2Blocks) {
 						bzip2Blocks.put(blockUncompressedPosition, blockPositionInBits);
 					}
-					int percentFinished = (int) ((blockPositionInBits / 8) / (fileSize / progressBarMax));
-					progressBar.post(() -> progressBar.setProgress(percentFinished, true));
+					int progress = (int) ((blockPositionInBits / 8) / (fileSize / 100));
+					SearchActivity.updateProgressBar(progress, 0);
 				}
 			};
 			bZip2In.addCompressorEventListener(listener);
@@ -258,9 +246,6 @@ public class Indexer implements Runnable {
 			// store remaining buffer item
 			xmlDumpEntity.setIndexFinished(true);
 			commitTitlesAndXmlDumpEntity(getTitles(), xmlDumpEntity);
-
-			progressBar.post( () -> progressBar.setActivated(false));
-
 		} catch (IOException e) {
 			logger.log(Level.SEVERE, "failed!", e);
 		}
