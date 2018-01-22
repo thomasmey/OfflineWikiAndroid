@@ -23,7 +23,10 @@
             android:label="@string/title_activity_setting">
         </activity>
 
-        <service android:name=".service.StartupJob"
+        <service android:name=".service.IndexerJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+
+        <service android:name=".service.DownloadJob"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
         <activity

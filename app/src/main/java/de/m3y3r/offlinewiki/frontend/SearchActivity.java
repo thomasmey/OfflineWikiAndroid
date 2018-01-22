@@ -28,7 +28,8 @@ import java.util.List;
 import de.m3y3r.offlinewiki.R;
 import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
-import de.m3y3r.offlinewiki.service.StartupJob;
+import de.m3y3r.offlinewiki.service.DownloadJob;
+import de.m3y3r.offlinewiki.service.IndexerJob;
 
 public class SearchActivity extends Activity {
 
@@ -71,19 +72,13 @@ public class SearchActivity extends Activity {
 		};
 		listView.setOnItemClickListener(listener);
 
-		// check if we have an xmldump file
-		String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
-
 		ProgressBar progressBar = findViewById(R.id.progressBar);
 		progressBar.setVisibility(View.INVISIBLE);
 
 		JobScheduler jobScheduler = (JobScheduler) getApplicationContext().getSystemService(JOB_SCHEDULER_SERVICE);
-		PersistableBundle pb = new PersistableBundle();
-		pb.putString("xmlDumpUrlString", xmlDumpUrl);
-
-		JobInfo jobInfo = new JobInfo.Builder(1, new ComponentName(getApplicationContext(), StartupJob.class))
+		JobInfo jobInfo = new JobInfo.Builder(1, new ComponentName(getApplicationContext(), DownloadJob.class))
 				.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
-				.setExtras(pb)
+				//.setRequiresCharging(true)
 				.build();
 		jobScheduler.schedule(jobInfo);
 
