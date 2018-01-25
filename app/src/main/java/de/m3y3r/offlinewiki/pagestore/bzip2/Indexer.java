@@ -4,10 +4,6 @@
 
 package de.m3y3r.offlinewiki.pagestore.bzip2;
 
-import android.os.Message;
-import android.view.View;
-import android.widget.ProgressBar;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +33,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 public class Indexer implements Runnable {
 
 	private static final int XML_BUFFER_SIZE = 1024*1024*4;
-	private static final int MAX_TITLES = 10;
+	private static final int MAX_TITLES = 100;
 
 	private final SplitFile inputFile;
 	private final XmlDumpEntity xmlDumpEntity;

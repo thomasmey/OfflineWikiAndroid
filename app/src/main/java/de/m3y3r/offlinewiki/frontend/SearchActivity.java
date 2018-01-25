@@ -89,9 +89,9 @@ public class SearchActivity extends Activity {
 					return;
 
 				if (msg.arg2 == 1) {
-					progressBar.setVisibility(View.INVISIBLE);
-				} else if (msg.arg2 == 2) {
 					progressBar.setVisibility(View.VISIBLE);
+				} else if (msg.arg2 == 2) {
+					progressBar.setVisibility(View.INVISIBLE);
 				}
 
 				progressBar.setProgress(msg.arg1);

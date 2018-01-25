@@ -18,6 +18,8 @@ public class IndexerJob extends JobService implements Runnable {
 
 	@Override
 	public void run() {
+		SearchActivity.updateProgressBar(0, 1);
+
 		TitleDatabase db = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
 		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 		try {
@@ -29,14 +31,13 @@ public class IndexerJob extends JobService implements Runnable {
 			}
 			jobFinished(jobParameters, false);
 		} finally {
+			SearchActivity.updateProgressBar(0, 2);
 			db.close();
 		}
 	}
 
 	@Override
 	public boolean onStartJob(JobParameters jobParameters) {
-		SearchActivity.updateProgressBar(0, 2);
-
 		String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
 		this.jobParameters = jobParameters;
 		this.xmlDumpUrlString = xmlDumpUrl;
@@ -47,8 +48,6 @@ public class IndexerJob extends JobService implements Runnable {
 
 	@Override
 	public boolean onStopJob(JobParameters jobParameters) {
-		SearchActivity.updateProgressBar(0, 1);
-
 		Thread w = worker;
 		worker = null;
 		if(w != null) w.interrupt();
