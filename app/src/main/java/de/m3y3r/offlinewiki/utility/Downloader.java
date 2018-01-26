@@ -24,16 +24,14 @@ public class Downloader  implements Runnable {
 
 	private final TitleDatabase db;
 	private final URL url;
-	private final XmlDumpEntity xmlDumpEntity;
 	private final Context ctx;
 
 	private String etag;
 	private long lenRemote;
 
-	public Downloader(Context ctx, TitleDatabase db, XmlDumpEntity xmlDumpEntity, String xmlDumpUrl) throws MalformedURLException {
+	public Downloader(Context ctx, TitleDatabase db, String xmlDumpUrl) throws MalformedURLException {
 		this.ctx = ctx;
 		this.db = db;
-		this.xmlDumpEntity = xmlDumpEntity;
 		this.url = new URL(xmlDumpUrl);
 	}
 
@@ -82,7 +80,8 @@ public class Downloader  implements Runnable {
 		// get remote size and etag
 		getEtagAndSize();
 
-		XmlDumpEntity xmlDumpEntity = this.xmlDumpEntity;
+		final XmlDumpEntity xmlDumpEntityOrig = db.getDao().getXmlDumpEntityByUrl(url.toExternalForm());
+		XmlDumpEntity xmlDumpEntity = xmlDumpEntityOrig;
 		if(xmlDumpEntity == null) {
 			// create a new xml dump entity
 			File targetDirectory = getTargetDirectory(lenRemote);
@@ -108,7 +107,7 @@ public class Downloader  implements Runnable {
 		try(SplitFileOutputStream outputStream = new SplitFileOutputStream(dumpFile, Config.SPLIT_SIZE)) {
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			con.setRequestMethod("GET");
-			if(this.xmlDumpEntity != null) { // restart existing download
+			if(xmlDumpEntityOrig != null) { // restart existing download
 				long lenCommited = dumpFile.length();
 				con.addRequestProperty("Range", "bytes=" + lenCommited + "-");
 				outputStream.seek(lenCommited);

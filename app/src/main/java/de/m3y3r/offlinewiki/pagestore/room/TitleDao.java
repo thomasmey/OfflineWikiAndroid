@@ -16,14 +16,11 @@ import de.m3y3r.offlinewiki.Config;
 @Dao
 public abstract class TitleDao {
 
-	@Query("SELECT * FROM TitleEntity WHERE title >= :title LIMIT :noMaxHits")
+	@Query("SELECT * FROM TitleEntity WHERE title >= :title ORDER BY title ASC LIMIT :noMaxHits")
 	public abstract List<TitleEntity> getTitleEntityByIndexKeyAscending(int noMaxHits, String title);
 
-	@Query("SELECT * FROM TitleEntity WHERE title LIKE :title LIMIT :noMaxHits")
+	@Query("SELECT * FROM TitleEntity WHERE title LIKE :title ORDER BY title ASC LIMIT :noMaxHits")
 	public abstract List<TitleEntity> getTitleEntityByIndexKeyAscendingLike(int noMaxHits, String title);
-
-	@Query("SELECT * FROM TitleEntity WHERE title = :indexKey")
-	public abstract TitleEntity getTitleEntityByIndexKey(String indexKey);
 
 	@Insert
 	public abstract void insertAllTitleEntity(TitleEntity... titleEntity);

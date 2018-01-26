@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.os.PersistableBundle;
 import android.preference.PreferenceManager;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -23,6 +22,7 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SearchView;
 
+import java.util.Collections;
 import java.util.List;
 
 import de.m3y3r.offlinewiki.R;
@@ -76,11 +76,21 @@ public class SearchActivity extends Activity {
 		progressBar.setVisibility(View.INVISIBLE);
 
 		JobScheduler jobScheduler = (JobScheduler) getApplicationContext().getSystemService(JOB_SCHEDULER_SERVICE);
-		JobInfo jobInfo = new JobInfo.Builder(1, new ComponentName(getApplicationContext(), DownloadJob.class))
-				.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
-				//.setRequiresCharging(true)
-				.build();
-		jobScheduler.schedule(jobInfo);
+		// start downloader job
+		{
+			JobInfo jobInfo = new JobInfo.Builder(1, new ComponentName(getApplicationContext(), DownloadJob.class))
+					.setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+					.build();
+			jobScheduler.schedule(jobInfo);
+		}
+
+		// start indexer job
+		{
+			JobInfo jobInfo = new JobInfo.Builder(2, new ComponentName(getApplicationContext(), IndexerJob.class))
+					.setRequiresCharging(true)
+					.build();
+			jobScheduler.schedule(jobInfo);
+		}
 
 		handler = new Handler(Looper.getMainLooper()) {
 			@Override
@@ -108,8 +118,15 @@ public class SearchActivity extends Activity {
 				AsyncTask task = new AsyncTask<Object, Object, List<TitleEntity>>() {
 					@Override
 					protected List<TitleEntity> doInBackground(Object... params) {
-						System.out.println("params=" +params);
-						return titleDatabase.getDao().getTitleEntityByIndexKeyAscending(50, params[0].toString());
+						if(params == null || params.length < 1)
+							return Collections.emptyList();
+
+						String query = (String) params[0];
+						if(query.length() > 1 && query.charAt(0) == ' ') {
+							return titleDatabase.getDao().getTitleEntityByIndexKeyAscendingLike(500, query.substring(1));
+						} else {
+							return titleDatabase.getDao().getTitleEntityByIndexKeyAscending(500, query);
+						}
 					}
 
 					@Override

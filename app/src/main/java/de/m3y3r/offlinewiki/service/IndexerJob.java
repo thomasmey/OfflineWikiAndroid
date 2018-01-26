@@ -5,6 +5,8 @@ import android.app.job.JobService;
 import android.arch.persistence.room.Room;
 import android.preference.PreferenceManager;
 
+import java.util.concurrent.TimeUnit;
+
 import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.bzip2.Indexer;
 import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
@@ -18,18 +20,26 @@ public class IndexerJob extends JobService implements Runnable {
 
 	@Override
 	public void run() {
-		SearchActivity.updateProgressBar(0, 1);
 
 		TitleDatabase db = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
-		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
-		try {
-			assert xmlDumpEntity != null;
 
+		try {
+			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
+
+			// wait for download job to download the first bits
+			while(xmlDumpEntity == null) {
+				Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+				xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
+			}
+
+			SearchActivity.updateProgressBar(0, 1);
 			if(!xmlDumpEntity.isIndexFinished()) {
-				Indexer indexer = new Indexer(db, xmlDumpEntity);
+				Indexer indexer = new Indexer(db, xmlDumpUrlString);
 				indexer.run();
 			}
 			jobFinished(jobParameters, false);
+		} catch (InterruptedException e) {
+			// we were interrupted, okay, we try again next time
 		} finally {
 			SearchActivity.updateProgressBar(0, 2);
 			db.close();

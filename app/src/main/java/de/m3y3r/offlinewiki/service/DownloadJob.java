@@ -30,21 +30,13 @@ public class DownloadJob extends JobService implements Runnable {
 		SearchActivity.updateProgressBar(0, 1);
 
 		TitleDatabase db = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
-		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 		try {
+			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 
 			if(xmlDumpEntity == null || !xmlDumpEntity.isDownloadFinished()) {
-				Downloader downloader = new Downloader(getApplicationContext(), db, xmlDumpEntity, xmlDumpUrlString);
+				Downloader downloader = new Downloader(getApplicationContext(), db,  xmlDumpUrlString);
 				downloader.run();
 			}
-
-			// start indexer job
-			JobScheduler jobScheduler = (JobScheduler) getApplicationContext().getSystemService(JOB_SCHEDULER_SERVICE);
-			JobInfo jobInfo = new JobInfo.Builder(2, new ComponentName(getApplicationContext(), IndexerJob.class))
-					.setRequiresCharging(true)
-					.build();
-			jobScheduler.schedule(jobInfo);
-
 			jobFinished(jobParameters, false);
 		} catch (IOException e) {
 			Logger.getLogger(Config.LOGGER_NAME).log(Level.SEVERE, "Background task failed!", e);

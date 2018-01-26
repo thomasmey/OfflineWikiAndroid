@@ -36,9 +36,9 @@ public class Indexer implements Runnable {
 	private static final int MAX_TITLES = 100;
 
 	private final SplitFile inputFile;
-	private final XmlDumpEntity xmlDumpEntity;
 	private final Logger logger;
 	private final TitleDatabase db;
+	private final String xmlDumpUrl;
 
 	/** bzip2 stream mapping: block starts: uncompressed position, position in bits*/
 	private TreeMap<Long,Long> bzip2Blocks;
@@ -49,13 +49,14 @@ public class Indexer implements Runnable {
 	private long offsetBlockUncompressedPosition;
 	private long offsetBlockPositionInBits;
 
-	public Indexer(TitleDatabase db, XmlDumpEntity xmlDumpEntity) {
-		if(db == null || xmlDumpEntity == null) throw new IllegalArgumentException();
+	public Indexer(TitleDatabase db, String xmlDumpUrl) {
+		if(db == null || xmlDumpUrl == null) throw new IllegalArgumentException();
 
+		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
 		SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
 		this.inputFile = dumpFile;
-		this.xmlDumpEntity = xmlDumpEntity;
 		this.db = db;
+		this.xmlDumpUrl = xmlDumpUrl;
 
 		this.logger = Logger.getLogger(Config.LOGGER_NAME);
 		this.bzip2Blocks = new TreeMap<>();
@@ -64,8 +65,6 @@ public class Indexer implements Runnable {
 	// we need to do the XML parsing ourselves to get a connection between the current element file offset
 	// and the parser state...
 	public void run() {
-
-		long fileSize = inputFile.length();
 
 		Map<Integer,StringBuilder> levelNameMap = new HashMap<>();
 		int level = 0;
@@ -97,6 +96,7 @@ public class Indexer implements Runnable {
 					synchronized (bzip2Blocks) {
 						bzip2Blocks.put(blockUncompressedPosition, blockPositionInBits);
 					}
+					long fileSize = inputFile.length(); //FIXME: move remote length into XmlDumpEntity and use this one here
 					int progress = (int) ((blockPositionInBits / 8) / (fileSize / 100));
 					SearchActivity.updateProgressBar(progress, 0);
 				}
@@ -107,6 +107,7 @@ public class Indexer implements Runnable {
 			currentChar = utf8Reader.read();
 
 			// restart indexing from the last position
+			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
 			if(currentChar >= 0 && xmlDumpEntity.getBlockPositionInBits() != null) {
 				long posInBits = xmlDumpEntity.getBlockPositionInBits();
 				fis.seek(posInBits / 8); // position underlying file to the bzip2 block start
@@ -240,8 +241,11 @@ public class Indexer implements Runnable {
 			}
 
 			// store remaining buffer item
-			xmlDumpEntity.setIndexFinished(true);
+			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
+			if(xmlDumpEntity.isDownloadFinished())
+				xmlDumpEntity.setIndexFinished(true);
 			commitTitlesAndXmlDumpEntity(getTitles(), xmlDumpEntity);
+
 		} catch (IOException e) {
 			logger.log(Level.SEVERE, "failed!", e);
 		}
@@ -274,6 +278,7 @@ public class Indexer implements Runnable {
 			}
 		}
 
+		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
 		xmlDumpEntity.setIndexBlockPositionInBits(blockPositionInBits);
 		xmlDumpEntity.setIndexBlockPositionUncompressed(blockUncompressedPosition);
 		xmlDumpEntity.setIndexPagePositionUncompressed(currentUncompressedPosition);
