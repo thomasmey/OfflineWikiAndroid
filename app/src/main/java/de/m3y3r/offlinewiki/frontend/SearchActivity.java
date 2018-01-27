@@ -26,15 +26,16 @@ import java.util.Collections;
 import java.util.List;
 
 import de.m3y3r.offlinewiki.R;
-import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
+import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
+import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 import de.m3y3r.offlinewiki.service.DownloadJob;
 import de.m3y3r.offlinewiki.service.IndexerJob;
 
 public class SearchActivity extends Activity {
 
 	private volatile static android.os.Handler handler;
-	private TitleDatabase titleDatabase;
+	private AppDatabase titleDatabase;
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
@@ -109,7 +110,7 @@ public class SearchActivity extends Activity {
 		};
 
 		// get db
-		titleDatabase = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
+		titleDatabase = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "title-database").build();
 
 		SearchView searchView = (SearchView) findViewById(R.id.search);
 		SearchView.OnQueryTextListener qtl = new SearchView.OnQueryTextListener() {
@@ -121,11 +122,13 @@ public class SearchActivity extends Activity {
 						if(params == null || params.length < 1)
 							return Collections.emptyList();
 
+						String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("xmlDumpUrl", null);
+						XmlDumpEntity xmlDumpEntity = titleDatabase.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
 						String query = (String) params[0];
 						if(query.length() > 1 && query.charAt(0) == ' ') {
-							return titleDatabase.getDao().getTitleEntityByIndexKeyAscendingLike(500, query.substring(1));
+							return titleDatabase.getDao().getTitleEntityByIndexKeyAscendingLike(xmlDumpEntity.getId(), 100, query.substring(1));
 						} else {
-							return titleDatabase.getDao().getTitleEntityByIndexKeyAscending(500, query);
+							return titleDatabase.getDao().getTitleEntityByIndexKeyAscending(xmlDumpEntity.getId(), 100, query);
 						}
 					}
 
@@ -152,7 +155,7 @@ public class SearchActivity extends Activity {
 	protected void onDestroy() {
 		super.onDestroy();
 
-		TitleDatabase db  = titleDatabase;
+		AppDatabase db  = titleDatabase;
 		titleDatabase = null;
 		if(db != null)
 			db.close();

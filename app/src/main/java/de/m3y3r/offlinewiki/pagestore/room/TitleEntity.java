@@ -1,17 +1,22 @@
 package de.m3y3r.offlinewiki.pagestore.room;
 
 import android.arch.persistence.room.Entity;
+import android.arch.persistence.room.ForeignKey;
 import android.arch.persistence.room.PrimaryKey;
 import android.support.annotation.NonNull;
 
 import java.io.Serializable;
 
-@Entity
+@Entity(
+	primaryKeys = {"xmlDumpId", "title"},
+	foreignKeys = { @ForeignKey(entity = XmlDumpEntity.class, parentColumns = "id", childColumns = "xmlDumpId") }
+)
 public class TitleEntity implements Serializable {
 
-	@PrimaryKey
+	private int xmlDumpId;
 	@NonNull
 	private String title;
+
 	@NonNull
 	private long pageUncompressedPosition;
 	@NonNull
@@ -19,10 +24,16 @@ public class TitleEntity implements Serializable {
 	@NonNull
 	private long blockPositionInBits;
 
+	public int getXmlDumpId() {
+		return xmlDumpId;
+	}
+	public void setXmlDumpId(int xmlDumpId) {
+		this.xmlDumpId = xmlDumpId;
+	}
+
 	public String getTitle() {
 		return title;
 	}
-
 	public void setTitle(String title) {
 		this.title = title;
 	}

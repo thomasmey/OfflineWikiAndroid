@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.bzip2.Indexer;
-import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
+import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 
 public class IndexerJob extends JobService implements Runnable {
@@ -21,8 +21,7 @@ public class IndexerJob extends JobService implements Runnable {
 	@Override
 	public void run() {
 
-		TitleDatabase db = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
-
+		AppDatabase db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "title-database").build();
 		try {
 			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 
@@ -37,7 +36,11 @@ public class IndexerJob extends JobService implements Runnable {
 				Indexer indexer = new Indexer(db, xmlDumpUrlString);
 				indexer.run();
 			}
-			jobFinished(jobParameters, false);
+
+			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
+			if(xmlDumpEntity.isIndexFinished())
+				jobFinished(jobParameters, false);
+
 		} catch (InterruptedException e) {
 			// we were interrupted, okay, we try again next time
 		} finally {

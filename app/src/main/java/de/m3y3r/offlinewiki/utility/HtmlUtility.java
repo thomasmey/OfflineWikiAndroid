@@ -2,6 +2,10 @@ package de.m3y3r.offlinewiki.utility;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import de.m3y3r.offlinewiki.Config;
 
 public class HtmlUtility {
 
@@ -30,14 +34,13 @@ public class HtmlUtility {
 						result.insert(from, replace.charValue());
 					}
 					else {
-						System.err.println("Unknown HTML entity: " + entity);
+						Logger.getLogger(Config.LOGGER_NAME).log(Level.SEVERE, "Unknown HTML entity: {0}", entity);
 					}
 				}
 				from = -1;
 				to = -1;
 			}
-
-		}
+                                                                                                                       		}
 		return result.toString();
 	}
 }

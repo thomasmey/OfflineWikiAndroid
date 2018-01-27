@@ -17,7 +17,7 @@ import de.m3y3r.offlinewiki.Config;
 import de.m3y3r.offlinewiki.PageRetriever;
 import de.m3y3r.offlinewiki.R;
 import de.m3y3r.offlinewiki.WikiPage;
-import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
+import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 import de.m3y3r.offlinewiki.utility.BufferInputStream;
@@ -35,7 +35,7 @@ public class ScrollingActivity extends Activity {
 		TitleEntity titleEntity = (TitleEntity) intent.getSerializableExtra("titleEntity");
 
 		// get db
-		TitleDatabase titleDatabase = Room.databaseBuilder(getApplicationContext(), TitleDatabase.class, "title-database").build();
+		AppDatabase titleDatabase = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "title-database").build();
 
 		String xmlDumpUrlString = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
 
@@ -43,7 +43,7 @@ public class ScrollingActivity extends Activity {
 			@Override
 			protected Object doInBackground(Object[] params) {
 				String xmlDumpUrlString = (String) params[0];
-				TitleDatabase db = (TitleDatabase) params[1];
+				AppDatabase db = (AppDatabase) params[1];
 				TitleEntity titleEntity = (TitleEntity) params[2];
 
 				// get entry from db

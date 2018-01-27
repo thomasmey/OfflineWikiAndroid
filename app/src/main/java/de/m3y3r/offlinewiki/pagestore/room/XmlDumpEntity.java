@@ -1,17 +1,21 @@
 package de.m3y3r.offlinewiki.pagestore.room;
 
 import android.arch.persistence.room.Entity;
+import android.arch.persistence.room.Index;
 import android.arch.persistence.room.PrimaryKey;
 import android.support.annotation.NonNull;
 
-@Entity
+@Entity( indices = @Index(value = {"url"}, unique = true))
 public class XmlDumpEntity {
 
-	@PrimaryKey
+	@PrimaryKey(autoGenerate = true)
+	private int id;
 	@NonNull
 	private String url;
 	@NonNull
 	private String etag;
+	@NonNull
+	private Long length;
 	@NonNull
 	private boolean downloadFinished;
 
@@ -22,6 +26,13 @@ public class XmlDumpEntity {
 	private Long pagePositionUncompressed;
 	private String baseName;
 	private String directory;
+
+	public int getId() {
+		return id;
+	}
+	public void setId(int id) {
+		this.id = id;
+	}
 
 	@NonNull
 	public String getUrl() {
@@ -109,5 +120,13 @@ public class XmlDumpEntity {
 
 	public String getDirectory() {
 		return directory;
+	}
+
+	@NonNull
+	public Long getLength() {
+		return length;
+	}
+	public void setLength(@NonNull Long length) {
+		this.length = length;
 	}
 }

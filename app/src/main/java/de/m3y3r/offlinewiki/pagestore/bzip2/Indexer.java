@@ -17,7 +17,7 @@ import java.util.logging.Logger;
 import de.m3y3r.offlinewiki.Config;
 import de.m3y3r.offlinewiki.Utf8Reader;
 import de.m3y3r.offlinewiki.frontend.SearchActivity;
-import de.m3y3r.offlinewiki.pagestore.room.TitleDatabase;
+import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 import de.m3y3r.offlinewiki.utility.BufferInputStream;
@@ -37,8 +37,9 @@ public class Indexer implements Runnable {
 
 	private final SplitFile inputFile;
 	private final Logger logger;
-	private final TitleDatabase db;
+	private final AppDatabase db;
 	private final String xmlDumpUrl;
+	private final long fileSize;
 
 	/** bzip2 stream mapping: block starts: uncompressed position, position in bits*/
 	private TreeMap<Long,Long> bzip2Blocks;
@@ -49,7 +50,7 @@ public class Indexer implements Runnable {
 	private long offsetBlockUncompressedPosition;
 	private long offsetBlockPositionInBits;
 
-	public Indexer(TitleDatabase db, String xmlDumpUrl) {
+	public Indexer(AppDatabase db, String xmlDumpUrl) {
 		if(db == null || xmlDumpUrl == null) throw new IllegalArgumentException();
 
 		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
@@ -57,6 +58,7 @@ public class Indexer implements Runnable {
 		this.inputFile = dumpFile;
 		this.db = db;
 		this.xmlDumpUrl = xmlDumpUrl;
+		this.fileSize = xmlDumpEntity.getLength();
 
 		this.logger = Logger.getLogger(Config.LOGGER_NAME);
 		this.bzip2Blocks = new TreeMap<>();
@@ -96,7 +98,6 @@ public class Indexer implements Runnable {
 					synchronized (bzip2Blocks) {
 						bzip2Blocks.put(blockUncompressedPosition, blockPositionInBits);
 					}
-					long fileSize = inputFile.length(); //FIXME: move remote length into XmlDumpEntity and use this one here
 					int progress = (int) ((blockPositionInBits / 8) / (fileSize / 100));
 					SearchActivity.updateProgressBar(progress, 0);
 				}
