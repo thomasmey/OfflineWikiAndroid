@@ -40,7 +40,7 @@ public class DownloadJob extends JobService implements Runnable {
 		} catch (IOException e) {
 			Logger.getLogger(Config.LOGGER_NAME).log(Level.SEVERE, "Background task failed!", e);
 		} finally {
-			SearchActivity.updateProgressBar(0, 2);
+//			SearchActivity.updateProgressBar(0, 2);
 			db.close();
 		}
 	}

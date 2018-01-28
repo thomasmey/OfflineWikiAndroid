@@ -44,7 +44,7 @@ public class IndexerJob extends JobService implements Runnable {
 		} catch (InterruptedException e) {
 			// we were interrupted, okay, we try again next time
 		} finally {
-			SearchActivity.updateProgressBar(0, 2);
+//			SearchActivity.updateProgressBar(0, 2);
 			db.close();
 		}
 	}

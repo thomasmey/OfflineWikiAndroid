@@ -243,7 +243,7 @@ public class Indexer implements Runnable {
 
 			// store remaining buffer item
 			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
-			if(xmlDumpEntity.isDownloadFinished())
+			if(xmlDumpEntity.isIndexFinished())
 				xmlDumpEntity.setIndexFinished(true);
 			commitTitlesAndXmlDumpEntity(getTitles(), xmlDumpEntity);
 
