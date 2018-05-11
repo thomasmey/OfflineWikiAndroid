@@ -4,64 +4,49 @@
 
 package de.m3y3r.offlinewiki.pagestore.bzip2;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import de.m3y3r.offlinewiki.Config;
-import de.m3y3r.offlinewiki.Utf8Reader;
-import de.m3y3r.offlinewiki.frontend.SearchActivity;
-import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
-import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
-import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
-import de.m3y3r.offlinewiki.utility.BufferInputStream;
-import de.m3y3r.offlinewiki.utility.HtmlUtility;
-import de.m3y3r.offlinewiki.utility.SplitFile;
-import de.m3y3r.offlinewiki.utility.SplitFileInputStream;
 
 import org.apache.commons.compress.compressors.CompressorEvent;
 import org.apache.commons.compress.compressors.CompressorEventListener;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
+import de.m3y3r.offlinewiki.Config;
+import de.m3y3r.offlinewiki.Utf8Reader;
+import de.m3y3r.offlinewiki.utility.HtmlUtility;
+
 public class Indexer implements Runnable {
 
 	private static final int XML_BUFFER_SIZE = 1024*1024*4;
-	private static final int MAX_TITLES = 100;
 
-	private final SplitFile inputFile;
 	private final Logger logger;
-	private final AppDatabase db;
-	private final String xmlDumpUrl;
-	private final long fileSize;
+	private final List<IndexerEventListener> eventListeners;
 
 	/** bzip2 stream mapping: block starts: uncompressed position, position in bits*/
 	private TreeMap<Long,Long> bzip2Blocks;
 
 	/** current bzip2 block number */
-	private TitleEntity[] titles = new TitleEntity[MAX_TITLES];
-	private int titlesIdx;
 	private long offsetBlockUncompressedPosition;
 	private long offsetBlockPositionInBits;
 
-	public Indexer(AppDatabase db, String xmlDumpUrl) {
-		if(db == null || xmlDumpUrl == null) throw new IllegalArgumentException();
+	private InputStream inputStream;
 
-		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
-		SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
-		this.inputFile = dumpFile;
-		this.db = db;
-		this.xmlDumpUrl = xmlDumpUrl;
-		this.fileSize = xmlDumpEntity.getLength();
+	public Indexer(InputStream InputStream) {
+
+		this.inputStream = InputStream;
 
 		this.logger = Logger.getLogger(Config.LOGGER_NAME);
 		this.bzip2Blocks = new TreeMap<>();
+		this.eventListeners = new CopyOnWriteArrayList<>();
 	}
 
 	// we need to do the XML parsing ourselves to get a connection between the current element file offset
@@ -78,14 +63,11 @@ public class Indexer implements Runnable {
 		long currentTagEndPos = 0;
 		long pageTagStartPos = 0;
 		int currentMode = 0, nextMode = 0; // FIXME: change to enum
-		int titleCount = 0;
 
 		int currentChar;
 
 		try (
-				SplitFileInputStream fis = new SplitFileInputStream(inputFile, Config.SPLIT_SIZE);
-				BufferInputStream in = new BufferInputStream(fis);
-				BZip2CompressorInputStream bZip2In = new BZip2CompressorInputStream(in, false);
+				BZip2CompressorInputStream bZip2In = new BZip2CompressorInputStream(inputStream, false);
 				Utf8Reader utf8Reader = new Utf8Reader(bZip2In)) {
 
 			CompressorEventListener listener = e -> {
@@ -98,8 +80,7 @@ public class Indexer implements Runnable {
 					synchronized (bzip2Blocks) {
 						bzip2Blocks.put(blockUncompressedPosition, blockPositionInBits);
 					}
-					int progress = (int) ((blockPositionInBits / 8) / (fileSize / 100));
-					SearchActivity.updateProgressBar(progress, 0);
+					fireEventNewBlock(blockPositionInBits);
 				}
 			};
 			bZip2In.addCompressorEventListener(listener);
@@ -107,27 +88,26 @@ public class Indexer implements Runnable {
 			// read first; the read must happen here, so the bzip2 header is consumed.
 			currentChar = utf8Reader.read();
 
-			// restart indexing from the last position
-			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
-			if(currentChar >= 0 && xmlDumpEntity.getBlockPositionInBits() != null) {
-				long posInBits = xmlDumpEntity.getBlockPositionInBits();
-				fis.seek(posInBits / 8); // position underlying file to the bzip2 block start
-				in.clearBuffer(); // clear buffer content
-				bZip2In.resetBlock((byte) (posInBits % 8)); // consume superfluous bits
-
-				// fix internal state of Bzip2CompressorInputStream
-				offsetBlockPositionInBits = xmlDumpEntity.getBlockPositionInBits() / 8 * 8; // throw away superfluous bits
-				offsetBlockUncompressedPosition = xmlDumpEntity.getBlockPositionUncompressed();
-
-				// skip to next page; set uncompressed byte position
-				long nextPagePos = xmlDumpEntity.getPagePositionUncompressed() - xmlDumpEntity.getBlockPositionUncompressed();
-				bZip2In.skip(nextPagePos);
-				utf8Reader.setCurrentFilePos(xmlDumpEntity.getPagePositionUncompressed());
-				currentChar = utf8Reader.read(); // read first character from bzip2 block
-				// fix-up levelNameMap, we are at a new <page> now, create fake level 0 entry
-				levelNameMap.put(1, new StringBuilder("mediawiki"));
-				level++;
-			}
+//			// restart indexing from the last position
+//			if(currentChar >= 0 && restarBlockPositionInBits != null) {
+//				long posInBits = restarBlockPositionInBits;
+//				fis.seek(posInBits / 8); // position underlying file to the bzip2 block start
+//				in.clearBuffer(); // clear buffer content
+//				bZip2In.resetBlock((byte) (posInBits % 8)); // consume superfluous bits
+//
+//				// fix internal state of Bzip2CompressorInputStream
+//				offsetBlockPositionInBits = restarBlockPositionInBits / 8 * 8; // throw away superfluous bits
+//				offsetBlockUncompressedPosition = restartBlockPositionUncompressed;
+//
+//				// skip to next page; set uncompressed byte position
+//				long nextPagePos = restartPagePositionUncompressed - restartBlockPositionUncompressed;
+//				bZip2In.skip(nextPagePos);
+//				utf8Reader.setCurrentFilePos(restartPagePositionUncompressed);
+//				currentChar = utf8Reader.read(); // read first character from bzip2 block
+//				// fix-up levelNameMap, we are at a new <page> now, create fake level 0 entry
+//				levelNameMap.put(1, new StringBuilder("mediawiki"));
+//				level++;
+//			}
 
 			while(currentChar >= 0) {
 				if(Thread.interrupted())
@@ -223,15 +203,11 @@ public class Indexer implements Runnable {
 							sb.appendCodePoint(sbChar[i]);
 						}
 						String title = HtmlUtility.decodeEntities(sb);
-						addToIndex(title, pageTagStartPos);
-						titleCount++;
+						fireEventNewTitle(title, pageTagStartPos);
 					}
 				} else if(currentMode == 2) {
 					if(nextMode == 0 && level == 1) {
-						if(titleCount > 0 && titleCount % MAX_TITLES == 0) {
-							logger.log(Level.FINE,"Processed {0} pages", titleCount);
-							commitTitlesAndXmlDumpEntity(getTitles(), setRestartPosition(currentTagEndPos));
-						}
+						fireEventTagEnd(currentTagEndPos);
 					}
 				}
 
@@ -242,71 +218,55 @@ public class Indexer implements Runnable {
 			}
 
 			// store remaining buffer item
-			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
-			if(xmlDumpEntity.isIndexFinished())
-				xmlDumpEntity.setIndexFinished(true);
-			commitTitlesAndXmlDumpEntity(getTitles(), xmlDumpEntity);
+			fireEventEndOfStream();
 
 		} catch (IOException e) {
 			logger.log(Level.SEVERE, "failed!", e);
 		}
 	}
 
-	private void commitTitlesAndXmlDumpEntity(TitleEntity[] titles, XmlDumpEntity xmlDumpEntity) {
-		db.getDao().insertTitlesAndXmlDumpEntity(xmlDumpEntity, titles);
-	}
-
-	private TitleEntity[] getTitles() {
-		if(titlesIdx < MAX_TITLES) // last commit case, can be smaller
-			return Arrays.copyOf(titles, titlesIdx);
-
-		titlesIdx = 0;
-		return titles;
-	}
-
-	private XmlDumpEntity setRestartPosition(long currentUncompressedPosition) throws IOException {
-		long blockUncompressedPosition;
-		long blockPositionInBits;
-		synchronized (bzip2Blocks) {
-			Entry<Long, Long> e = bzip2Blocks.floorEntry(currentUncompressedPosition);
-			blockUncompressedPosition = e.getKey();
-			blockPositionInBits = e.getValue();
-
-			// remove all smaller entries from map
-			Long lowerKey;
-			while ((lowerKey = bzip2Blocks.lowerKey(e.getKey())) != null) {
-				bzip2Blocks.remove(lowerKey);
-			}
+	private void fireEventNewBlock(long blockPositionInBits) {
+		IndexerEvent event = new IndexerEvent(this);
+		for(IndexerEventListener listener: eventListeners) {
+			listener.onNewBlock(event, blockPositionInBits);
 		}
-
-		XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrl);
-		xmlDumpEntity.setIndexBlockPositionInBits(blockPositionInBits);
-		xmlDumpEntity.setIndexBlockPositionUncompressed(blockUncompressedPosition);
-		xmlDumpEntity.setIndexPagePositionUncompressed(currentUncompressedPosition);
-		return xmlDumpEntity;
 	}
 
-	private void addToIndex(String pageTitel, long currentTagUncompressedPosition) throws IOException {
+	private void fireEventEndOfStream() {
+		IndexerEvent event = new IndexerEvent(this);
+		for(IndexerEventListener listener: eventListeners) {
+			listener.onEndOfStream(event);
+		}
+	}
 
-		long blockUncompressedPosition;
-		long blockPositionInBits;
+	private void fireEventNewTitle(String title, long pageTagStartPos) {
+		IndexerEvent event = new IndexerEvent(this);
+		for(IndexerEventListener listener: eventListeners) {
+			listener.onNewTitle(event, title, pageTagStartPos);
+		}
+	}
+
+	private void fireEventTagEnd(long currentTagEndPos) {
+		IndexerEvent event = new IndexerEvent(this);
+		for(IndexerEventListener listener: eventListeners) {
+			listener.onPageTagEnd(event, currentTagEndPos);
+		}
+	}
+
+	public Entry<Long, Long> getBlockStartPosition(long currentTagUncompressedPosition) {
 		synchronized (bzip2Blocks) {
 			Entry<Long, Long> e = bzip2Blocks.floorEntry(currentTagUncompressedPosition);
-			blockUncompressedPosition = e.getKey();
-			blockPositionInBits = e.getValue();
 
 			// remove all smaller entries from map
 			Long lowerKey;
 			while ((lowerKey = bzip2Blocks.lowerKey(e.getKey())) != null) {
 				bzip2Blocks.remove(lowerKey);
 			}
+			return e;
 		}
+	}
 
-		TitleEntity title = new TitleEntity();
-		title.setTitle(pageTitel);
-		title.setPageUncompressedPosition(currentTagUncompressedPosition);
-		title.setBlockUncompressedPosition(blockUncompressedPosition);
-		title.setBlockPositionInBits(blockPositionInBits);
-		titles[titlesIdx++] = title;
+	public void addEventListener(IndexerEventListener eventListener) {
+		eventListeners.add(eventListener);
 	}
 }

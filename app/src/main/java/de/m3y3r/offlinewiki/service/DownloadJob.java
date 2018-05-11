@@ -5,6 +5,7 @@ import android.app.job.JobService;
 import android.arch.persistence.room.Room;
 import android.preference.PreferenceManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -14,6 +15,7 @@ import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 import de.m3y3r.offlinewiki.utility.Downloader;
+import de.m3y3r.offlinewiki.utility.SplitFile;
 
 public class DownloadJob extends JobService implements Runnable {
 
@@ -23,7 +25,7 @@ public class DownloadJob extends JobService implements Runnable {
 
 	@Override
 	public void run() {
-		SearchActivity.updateProgressBar(0, 1);
+//		SearchActivity.updateProgressBar(0, 1);
 
 		AppDatabase db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "title-database").build();
 		try {
@@ -32,6 +34,10 @@ public class DownloadJob extends JobService implements Runnable {
 				Downloader downloader = new Downloader(getApplicationContext(), db,  xmlDumpUrlString);
 				downloader.run();
 			}
+
+			SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
+			long fileSize = dumpFile.length();
+			System.out.println("Total file size: " + fileSize);
 
 			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 			if(xmlDumpEntity.isDownloadFinished())

@@ -5,12 +5,17 @@ import android.app.job.JobService;
 import android.arch.persistence.room.Room;
 import android.preference.PreferenceManager;
 
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 
+import de.m3y3r.offlinewiki.Config;
 import de.m3y3r.offlinewiki.frontend.SearchActivity;
 import de.m3y3r.offlinewiki.pagestore.bzip2.Indexer;
+import de.m3y3r.offlinewiki.pagestore.bzip2.RoomIndexerEventHandler;
 import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
+import de.m3y3r.offlinewiki.utility.SplitFile;
+import de.m3y3r.offlinewiki.utility.SplitFileInputStream;
 
 public class IndexerJob extends JobService implements Runnable {
 
@@ -33,7 +38,11 @@ public class IndexerJob extends JobService implements Runnable {
 
 			SearchActivity.updateProgressBar(0, 1);
 			if(!xmlDumpEntity.isIndexFinished()) {
-				Indexer indexer = new Indexer(db, xmlDumpUrlString);
+				RoomIndexerEventHandler eventHandler = new RoomIndexerEventHandler(db, xmlDumpUrlString);
+				SplitFile inputFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
+				SplitFileInputStream fis = new SplitFileInputStream(inputFile, Config.SPLIT_SIZE);
+				Indexer indexer = new Indexer(fis);
+				indexer.addEventListener(eventHandler);
 				indexer.run();
 			}
 
@@ -44,7 +53,7 @@ public class IndexerJob extends JobService implements Runnable {
 		} catch (InterruptedException e) {
 			// we were interrupted, okay, we try again next time
 		} finally {
-//			SearchActivity.updateProgressBar(0, 2);
+			SearchActivity.updateProgressBar(0, 2);
 			db.close();
 		}
 	}

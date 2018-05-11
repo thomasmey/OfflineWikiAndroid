@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 
 public class BufferInputStream extends InputStream {
 
-	private final static int BUFFER_SIZE = 8192;
+	private final static int BUFFER_SIZE = (int)Math.pow(2,20);
 	private final ByteBuffer byteBuffer;
 	private final InputStream in;
 	private boolean byteBufferEOF;
@@ -42,7 +42,7 @@ public class BufferInputStream extends InputStream {
 		}
 	}
 
-	// we need to do the buffering ourself
+	// we need to do the buffering ourselves
 	private int readBuffered() throws IOException {
 
 		int rc = -1;
