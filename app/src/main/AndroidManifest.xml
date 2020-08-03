@@ -29,6 +29,9 @@
         <service android:name=".service.DownloadJob"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
 
+        <service android:name=".service.BlockFinderJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+
         <activity
             android:name=".frontend.ScrollingActivity"
             android:label="@string/title_activity_scrolling">

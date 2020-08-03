@@ -14,6 +14,8 @@ public class HtmlUtility {
 		entityMap.put("&quot;",'\u0022');
 		entityMap.put("&amp;",'\u0026');
 		entityMap.put("&nbsp;",'\u00a0');
+		entityMap.put("&lt;",'<');
+		entityMap.put("&gt;",'>');
 	}
 
 	public static String decodeEntities(CharSequence input) {
@@ -34,7 +36,7 @@ public class HtmlUtility {
 						result.insert(from, replace.charValue());
 					}
 					else {
-						Logger.getLogger(Config.LOGGER_NAME).log(Level.SEVERE, "Unknown HTML entity: {0}", entity);
+						Logger.getLogger(Config.getInstance().getLoggerName()).log(Level.SEVERE, "Unknown HTML entity: {0}", entity);
 					}
 				}
 				from = -1;

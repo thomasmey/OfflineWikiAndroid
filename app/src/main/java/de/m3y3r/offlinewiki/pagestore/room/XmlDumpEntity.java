@@ -1,9 +1,9 @@
 package de.m3y3r.offlinewiki.pagestore.room;
 
-import android.arch.persistence.room.Entity;
-import android.arch.persistence.room.Index;
-import android.arch.persistence.room.PrimaryKey;
-import android.support.annotation.NonNull;
+import androidx.room.Entity;
+import androidx.room.Index;
+import androidx.room.PrimaryKey;
+import androidx.annotation.NonNull;
 
 @Entity( indices = @Index(value = {"url"}, unique = true))
 public class XmlDumpEntity {
@@ -16,16 +16,25 @@ public class XmlDumpEntity {
 	private String etag;
 	@NonNull
 	private Long length;
-	@NonNull
+	private String baseName;
+	private String directory;
+
 	private boolean downloadFinished;
 
-	@NonNull
 	private boolean indexFinished;
 	private Long blockPositionInBits;
 	private Long blockPositionUncompressed;
 	private Long pagePositionUncompressed;
-	private String baseName;
-	private String directory;
+
+	private boolean blockFinderFinished;
+
+	public boolean isBlockFinderFinished() {
+		return blockFinderFinished;
+	}
+
+	public void setBlockFinderFinished(boolean blockFinderFinished) {
+		this.blockFinderFinished = blockFinderFinished;
+	}
 
 	public int getId() {
 		return id;
@@ -43,7 +52,6 @@ public class XmlDumpEntity {
 		this.url = url;
 	}
 
-	@NonNull
 	public boolean isIndexFinished() {
 		return indexFinished;
 	}
@@ -52,7 +60,6 @@ public class XmlDumpEntity {
 		this.indexFinished = indexFinished;
 	}
 
-	@NonNull
 	public boolean isDownloadFinished() {
 		return downloadFinished;
 	}

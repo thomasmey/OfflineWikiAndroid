@@ -2,20 +2,19 @@ package de.m3y3r.offlinewiki.service;
 
 import android.app.job.JobParameters;
 import android.app.job.JobService;
-import android.arch.persistence.room.Room;
+import androidx.room.Room;
 import android.preference.PreferenceManager;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 
-import de.m3y3r.offlinewiki.Config;
 import de.m3y3r.offlinewiki.frontend.SearchActivity;
-import de.m3y3r.offlinewiki.pagestore.bzip2.Indexer;
-import de.m3y3r.offlinewiki.pagestore.bzip2.RoomIndexerEventHandler;
+import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.room.RoomBlockController;
+import de.m3y3r.offlinewiki.pagestore.bzip2.index.IndexerController;
+import de.m3y3r.offlinewiki.pagestore.bzip2.index.room.RoomIndexerEventHandler;
 import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
 import de.m3y3r.offlinewiki.utility.SplitFile;
-import de.m3y3r.offlinewiki.utility.SplitFileInputStream;
 
 public class IndexerJob extends JobService implements Runnable {
 
@@ -30,26 +29,34 @@ public class IndexerJob extends JobService implements Runnable {
 		try {
 			XmlDumpEntity xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 
-			// wait for download job to download the first bits
+			if(xmlDumpEntity != null && xmlDumpEntity.isIndexFinished()) {
+				jobFinished(jobParameters, false);
+				return;
+			}
+
+			// wait for DownloadJob and BLockFinderJob to at least process something
 			while(xmlDumpEntity == null) {
-				Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+				Thread.sleep(TimeUnit.SECONDS.toMillis(60));
 				xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
 			}
 
+			RoomIndexerEventHandler eventHandler = new RoomIndexerEventHandler(db, xmlDumpEntity.getId());
 			SearchActivity.updateProgressBar(0, 1);
-			if(!xmlDumpEntity.isIndexFinished()) {
-				RoomIndexerEventHandler eventHandler = new RoomIndexerEventHandler(db, xmlDumpUrlString);
-				SplitFile inputFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
-				SplitFileInputStream fis = new SplitFileInputStream(inputFile, Config.SPLIT_SIZE);
-				Indexer indexer = new Indexer(fis);
-				indexer.addEventListener(eventHandler);
-				indexer.run();
+			eventHandler.updateProgressBar();
+
+			SplitFile dumpFile = new SplitFile(new File(xmlDumpEntity.getDirectory()), xmlDumpEntity.getBaseName());
+			RoomBlockController blockController = new RoomBlockController(db, xmlDumpEntity.getId());
+			IndexerController indexerController = new IndexerController(dumpFile, eventHandler, blockController);
+			indexerController.run();
+
+			if(xmlDumpEntity.isDownloadFinished() && xmlDumpEntity.isBlockFinderFinished() &&
+				db.getDao().getTotalBlockCount(xmlDumpEntity.getId()) -
+				db.getDao().getProcessedBlockCount(xmlDumpEntity.getId()) == 0) {
+				xmlDumpEntity.setIndexFinished(true);
+				db.getDao().updateXmlDumpEntity(xmlDumpEntity);
 			}
 
-			xmlDumpEntity = db.getDao().getXmlDumpEntityByUrl(xmlDumpUrlString);
-			if(xmlDumpEntity.isIndexFinished())
-				jobFinished(jobParameters, false);
-
+			jobFinished(jobParameters, !xmlDumpEntity.isIndexFinished());
 		} catch (InterruptedException e) {
 			// we were interrupted, okay, we try again next time
 		} finally {
@@ -63,7 +70,7 @@ public class IndexerJob extends JobService implements Runnable {
 		String xmlDumpUrl = PreferenceManager.getDefaultSharedPreferences(this).getString("xmlDumpUrl", null);
 		this.jobParameters = jobParameters;
 		this.xmlDumpUrlString = xmlDumpUrl;
-		worker = new Thread( this,"OfflineWiki-Background-Worker");
+		worker = new Thread( this,"OfflineWiki-IndexerJob");
 		worker.start();
 		return true;
 	}

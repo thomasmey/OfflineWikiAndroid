@@ -3,7 +3,7 @@ package de.m3y3r.offlinewiki.frontend;
 import android.app.Activity;
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
-import android.arch.persistence.room.Room;
+import androidx.room.Room;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.net.Uri;
@@ -29,6 +29,7 @@ import de.m3y3r.offlinewiki.R;
 import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.TitleEntity;
 import de.m3y3r.offlinewiki.pagestore.room.XmlDumpEntity;
+import de.m3y3r.offlinewiki.service.BlockFinderJob;
 import de.m3y3r.offlinewiki.service.DownloadJob;
 import de.m3y3r.offlinewiki.service.IndexerJob;
 
@@ -85,9 +86,17 @@ public class SearchActivity extends Activity {
 			jobScheduler.schedule(jobInfo);
 		}
 
+		// start blockfinder job
+		{
+			JobInfo jobInfo = new JobInfo.Builder(2, new ComponentName(getApplicationContext(), BlockFinderJob.class))
+					.setRequiresCharging(true)
+					.build();
+			jobScheduler.schedule(jobInfo);
+		}
+
 		// start indexer job
 		{
-			JobInfo jobInfo = new JobInfo.Builder(2, new ComponentName(getApplicationContext(), IndexerJob.class))
+			JobInfo jobInfo = new JobInfo.Builder(3, new ComponentName(getApplicationContext(), IndexerJob.class))
 					.setRequiresCharging(true)
 					.build();
 			jobScheduler.schedule(jobInfo);
@@ -163,10 +172,10 @@ public class SearchActivity extends Activity {
 		handler = null;
 	}
 
-	public static void updateProgressBar(int progess, int visible) {
+	public static void updateProgressBar(int progress, int visible) {
 		if(handler != null) {
 			Handler h = handler;
-			Message msg = h.obtainMessage(1, progess, visible);
+			Message msg = h.obtainMessage(1, progress, visible);
 			msg.sendToTarget();
 		}
 	}

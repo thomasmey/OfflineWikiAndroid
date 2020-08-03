@@ -2,7 +2,7 @@
  * Copyright 2012 Thomas Meyer
  */
 
-package de.m3y3r.offlinewiki;
+package de.m3y3r.offlinewiki.utility;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -79,9 +79,8 @@ public class Utf8Reader extends Reader {
 	}
 
 	private int readInternal() throws IOException {
-
 		int b = in.read();
-		currentFilePos++;
+		if(b >= 0) currentFilePos++;
 		return b;
 	}
 }

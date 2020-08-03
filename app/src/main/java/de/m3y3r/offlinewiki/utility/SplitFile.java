@@ -1,24 +1,31 @@
 package de.m3y3r.offlinewiki.utility;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import de.m3y3r.offlinewiki.Config;
 
 public class SplitFile /*extends File*/ {
 
+	private static final Logger log = Logger.getLogger(Config.getInstance().getLoggerName());
+
 	private final File baseDir;
 	private final String baseName;
-	private final Logger log;
 
 	public SplitFile(File targetDir, String baseName) {
+		if(!targetDir.exists() || !targetDir.isDirectory()) {
+			throw new IllegalArgumentException();
+		}
 		this.baseName = baseName;
 		this.baseDir = targetDir;
-		this.log = Logger.getLogger(Config.LOGGER_NAME);
 	}
 
 	public long length() {

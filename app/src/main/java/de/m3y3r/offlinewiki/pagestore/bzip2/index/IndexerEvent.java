@@ -1,4 +1,4 @@
-package de.m3y3r.offlinewiki.pagestore.bzip2;
+package de.m3y3r.offlinewiki.pagestore.bzip2.index;
 
 import java.util.EventObject;
 

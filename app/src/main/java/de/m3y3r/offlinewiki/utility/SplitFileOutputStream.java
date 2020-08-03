@@ -1,23 +1,17 @@
 package de.m3y3r.offlinewiki.utility;
 
-
-import android.support.annotation.NonNull;
-
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-
-import static android.hardware.Camera.open;
 
 public class SplitFileOutputStream extends OutputStream {
 	private final long splitSize;
 	private final SplitFile targetFile;
 
 	private FileOutputStream out;
+
 	private int fileCount;
 	private int fileSize;
 
@@ -43,7 +37,7 @@ public class SplitFileOutputStream extends OutputStream {
 	}
 
 	@Override
-	public void write(@NonNull byte[] b, int off, int len) throws IOException {
+	public void write(byte[] b, int off, int len) throws IOException {
 		if(out == null) {
 			open(fileCount, false);
 		}
@@ -65,7 +59,8 @@ public class SplitFileOutputStream extends OutputStream {
 	}
 
 	private FileOutputStream open(int splitNo, boolean append) throws FileNotFoundException {
-		out = new FileOutputStream(new File(targetFile.getParentFile(), targetFile.getBaseName() + '.' + splitNo), append);
+		File nextFile = new File(targetFile.getParentFile(), targetFile.getBaseName() + '.' + splitNo);
+		out = new FileOutputStream(nextFile, append);
 		this.fileCount = splitNo;
 		return out;
 	}
@@ -75,6 +70,7 @@ public class SplitFileOutputStream extends OutputStream {
 		if(out != null) {
 			out.getFD().sync();
 			out.close();
+
 			out = null;
 		}
 	}
@@ -90,4 +86,9 @@ public class SplitFileOutputStream extends OutputStream {
 		fileSize = (int) pos; //FIXME: Is this correct, or -1?
 	}
 
+	@Override
+	public void flush() throws IOException {
+		out.flush();
+		out.getFD().sync();
+	}
 }
