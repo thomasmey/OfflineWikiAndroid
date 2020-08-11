@@ -26,6 +26,8 @@ import de.m3y3r.offlinewiki.utility.SplitFileInputStream;
 public class BlockFinder implements Runnable {
 
 	private static final long COMPRESSED_MAGIC = 0x314159265359l;
+	private static final long EOS_MAGIC = 0x177245385090l;
+
 	private long currentMagic;
 	private long readCountBits;
 	private long blockNo;
@@ -34,6 +36,7 @@ public class BlockFinder implements Runnable {
 	private final List<BlockFinderEventListener> eventListeners;
 	private final BlockController blockController;
 	private final SplitFile fileToScan;
+	private int blockCount;
 
 	public static void main(String[] args) throws IOException {
 //		String baseName = args[0];
@@ -84,9 +87,10 @@ public class BlockFinder implements Runnable {
 	}
 
 	private boolean findBlocksStream() throws IOException {
+		long byteCount = 0;
 		try (SplitFileInputStream in = new SplitFileInputStream(fileToScan, Config.getInstance().getSplitSize())){
 			in.seek(readCountBits / 8);
-			try(BufferedInputStream bin = new BufferedInputStream(in, (int) Math.pow(2, 1))) {
+			try(BufferedInputStream bin = new BufferedInputStream(in, (int) Math.pow(2, 22))) {
 				int b = bin.read();
 				while(b >= 0) {
 					if(Thread.interrupted())
@@ -94,6 +98,10 @@ public class BlockFinder implements Runnable {
 
 					update(b);
 					b = bin.read();
+					byteCount++;
+					if(byteCount % 16_000_000 == 0) {
+						System.out.println("blockCount="+ blockCount);
+					}
 				}
 			}
 			return true;
@@ -156,10 +164,11 @@ public class BlockFinder implements Runnable {
 		}
 	}
 
-	private void fireEventNewBlock(long blockNo, long readCountBits) {
+	private void fireEventNewBlock(long blockNo, long readCountBits, boolean isEndOfStream) {
+		blockCount++;
 		for(BlockFinderEventListener el: eventListeners) {
 			EventObject event = new EventObject(this);
-			el.onNewBlock(event, blockNo, readCountBits);
+			el.onNewBlock(event, blockNo, readCountBits, isEndOfStream);
 		}
 	}
 
@@ -168,9 +177,10 @@ public class BlockFinder implements Runnable {
 			readCountBits++;
 			int cb = (b >> bi) & 1;
 			currentMagic = currentMagic << 1 | cb;
-			if((currentMagic & 0xff_ff_ff_ff_ff_ffl) == COMPRESSED_MAGIC) {
+			if((currentMagic & 0xff_ff_ff_ff_ff_ffl) == COMPRESSED_MAGIC ||
+				(currentMagic & 0xff_ff_ff_ff_ff_ffl) == EOS_MAGIC) {
 				if(blockNo != restartBlockNo) {
-					fireEventNewBlock(blockNo, readCountBits - 48);
+					fireEventNewBlock(blockNo, readCountBits - 48, ((currentMagic & 0xff_ff_ff_ff_ff_ffl) == EOS_MAGIC));
 				}
 				blockNo++;
 			}

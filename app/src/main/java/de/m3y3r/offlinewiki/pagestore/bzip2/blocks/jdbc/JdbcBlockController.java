@@ -6,13 +6,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.EventObject;
-import java.util.Iterator;
 import java.util.List;
 
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockController;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockFinderEventListener;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry.IndexState;
+import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockIterator;
 import de.m3y3r.offlinewiki.utility.Database;
 
 public class JdbcBlockController implements BlockController, BlockFinderEventListener {
@@ -29,7 +29,7 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 	private final List<BlockEntry> entries;
 
 	public JdbcBlockController() {
-		entries = new ArrayList<BlockEntry>();
+		entries = new ArrayList<>();
 		createTables();
 	}
 
@@ -49,7 +49,7 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public void onNewBlock(EventObject event, long blockNo, long readCountBits) {
+	public void onNewBlock(EventObject event, long blockNo, long readCountBits, boolean isEndOfStream) {
 		BlockEntry entry = new BlockEntry(blockNo, readCountBits, null);
 		entries.add(entry);
 		if(entries.size() > MAX_ENTRIES) {
@@ -67,7 +67,7 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 					ps.setInt(3, e.indexState == null ? IndexState.INITIAL.ordinal() : e.indexState.ordinal());
 					ps.addBatch();
 				}
-				int[] result = ps.executeBatch();
+				ps.executeBatch();
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -99,8 +99,8 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public Iterator<BlockEntry> getBlockIterator(long startBlockPositionInBits) {
-		return new BlockIterator(startBlockPositionInBits);
+	public BlockIterator getBlockIterator(long startBlockPositionInBits) {
+		return new JdbcBlockIterator(startBlockPositionInBits);
 	}
 
 	@Override
@@ -109,7 +109,7 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 			try(PreparedStatement ps = c.prepareStatement(SQL_UPDATE)) {
 				ps.setInt(1, IndexState.FINISHED.ordinal());
 				ps.setLong(2, blockNo);
-				int rows = ps.executeUpdate();
+				ps.executeUpdate();
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -122,7 +122,7 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 			try(PreparedStatement ps = c.prepareStatement(SQL_UPDATE)) {
 				ps.setInt(1, IndexState.FAILED.ordinal());
 				ps.setLong(2, blockNo);
-				int rows = ps.executeUpdate();
+				ps.executeUpdate();
 			}
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -168,17 +168,16 @@ public class JdbcBlockController implements BlockController, BlockFinderEventLis
 //	}
 }
 
-class BlockIterator implements Iterator<BlockEntry> {
+class JdbcBlockIterator implements BlockIterator {
 
 	private final ResultSet rs;
 
-	public BlockIterator(long startBlockPositionInBits) {
+	public JdbcBlockIterator(long startBlockPositionInBits) {
 		try {
 			Connection c = Database.getConnection();
 			PreparedStatement ps = c.prepareStatement(JdbcBlockController.SQL_FETCH_FROM);
 			ps.setLong(1, startBlockPositionInBits);
-			ResultSet rs = ps.executeQuery();
-			this.rs = rs;
+			this.rs = ps.executeQuery();
 		} catch(SQLException e) {
 			throw new RuntimeException(e);
 		}
@@ -207,5 +206,10 @@ class BlockIterator implements Iterator<BlockEntry> {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	@Override
+	public void close() throws Exception {
+		rs.close();
 	}
 }

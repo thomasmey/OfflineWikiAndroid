@@ -50,7 +50,11 @@ public class RoomIndexerEventHandler implements IndexerEventListener {
 	public void updateProgressBar() {
 		int totalCount = db.getDao().getTotalBlockCount(xmlDumpId);
 		int processedCount = db.getDao().getProcessedBlockCount(xmlDumpId);
-		int progress = (int) (processedCount / (totalCount / 100));
+		int progress = 0;
+		int perCent = (totalCount / 100);
+		if(perCent > 0) {
+			progress = (int) (processedCount / perCent);
+		}
 		SearchActivity.updateProgressBar(progress, 0);
 	}
 

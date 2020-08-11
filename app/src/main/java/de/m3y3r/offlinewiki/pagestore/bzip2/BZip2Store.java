@@ -4,8 +4,7 @@
 package de.m3y3r.offlinewiki.pagestore.bzip2;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Iterator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -17,7 +16,7 @@ import de.m3y3r.offlinewiki.PageRetriever;
 import de.m3y3r.offlinewiki.WikiPage;
 import de.m3y3r.offlinewiki.pagestore.Store;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockController;
-import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry;
+import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockIterator;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.jdbc.JdbcBlockController;
 import de.m3y3r.offlinewiki.pagestore.bzip2.index.IndexAccess;
 import de.m3y3r.offlinewiki.pagestore.bzip2.index.jdbc.JdbcIndexAccess;
@@ -45,13 +44,15 @@ public class BZip2Store implements Store<WikiPage, String> {
 
 	@Override
 	public List<String> getIndexKeyAscending(int noMaxHits, String indexKey) {
-		List<String> resultSet = index.getKeyAscending(noMaxHits, indexKey);
-		return resultSet;
+		throw new UnsupportedOperationException();
+//		List<String> resultSet = index.getKeyAscending(noMaxHits, indexKey);
+//		return resultSet;
 	}
 
 	@Override
 	public List<String> getIndexKeyAscendingLike(int maxReturnCount, String likeKey) {
-		return index.getKeyAscendingLike(maxReturnCount, likeKey);
+		throw new UnsupportedOperationException();
+//		return index.getKeyAscendingLike(maxReturnCount, likeKey);
 	}
 
 	@Override
@@ -65,18 +66,26 @@ public class BZip2Store implements Store<WikiPage, String> {
 		blockPositionInBits = positions[0];
 		pageUncompressedPosition = positions[1];
 
-		Iterator<BlockEntry> blockIterator = blockController.getBlockIterator(blockPositionInBits);
+		long[] blockPositions = null;
+		try(BlockIterator blockIterator = blockController.getBlockIterator(blockPositionInBits)) {
 
-		// TODO/FIXME: Test titles in last block of file...
-		long[] blockPositions = new long[] {
-			blockIterator.next().readCountBits,
-			blockIterator.next().readCountBits,
-			blockIterator.next().readCountBits};
+			blockPositions = new long[] {
+				blockIterator.next().readCountBits,
+				blockIterator.next().readCountBits,
+				blockIterator.hasNext() ? blockIterator.next().readCountBits : -1 // last data block only has the EOS block as next and last block
+			};
+
+			if(blockPositions[2] == -1) {
+				blockPositions = Arrays.copyOfRange(blockPositions,0,2);
+			}
+		} catch (Exception e) {
+			logger.log(Level.SEVERE, "failed", e);
+		}
 
 		try (
 				Bzip2BlockInputStream bbin = new Bzip2BlockInputStream(baseFile, blockPositions);
 				BufferInputStream in = new BufferInputStream(bbin);
-				BZip2CompressorInputStream bZip2In = new BZip2CompressorInputStream(in, false);) {
+				BZip2CompressorInputStream bZip2In = new BZip2CompressorInputStream(in, false)) {
 			// skip to next page; set uncompressed byte position
 			// i.e. the position relative to block start
 			long nextPagePos = pageUncompressedPosition;

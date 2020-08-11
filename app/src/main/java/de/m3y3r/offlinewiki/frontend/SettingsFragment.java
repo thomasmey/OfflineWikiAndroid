@@ -1,18 +1,14 @@
 package de.m3y3r.offlinewiki.frontend;
 
 import android.os.Bundle;
-import android.preference.PreferenceFragment;
-import androidx.annotation.Nullable;
 
+import androidx.preference.PreferenceFragmentCompat;
 import de.m3y3r.offlinewiki.R;
 
-
-public class SettingsFragment extends PreferenceFragment {
+public class SettingsFragment extends PreferenceFragmentCompat {
 
 	@Override
-	public void onCreate(@Nullable Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
+	public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
 		addPreferencesFromResource(R.xml.preferences);
 	}
 }

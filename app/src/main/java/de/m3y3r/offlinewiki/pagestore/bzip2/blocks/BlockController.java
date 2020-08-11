@@ -4,7 +4,7 @@ import java.util.Iterator;
 
 public interface BlockController {
 
-	Iterator<BlockEntry> getBlockIterator(long startBlockPositionInBits);
+	BlockIterator getBlockIterator(long startBlockPositionInBits);
 
 	BlockEntry getLatestEntry();
 

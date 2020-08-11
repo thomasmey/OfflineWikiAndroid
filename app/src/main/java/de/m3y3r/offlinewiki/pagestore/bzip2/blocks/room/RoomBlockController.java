@@ -5,12 +5,12 @@ import android.database.Cursor;
 
 import java.util.ArrayList;
 import java.util.EventObject;
-import java.util.Iterator;
 import java.util.List;
 
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockController;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockFinderEventListener;
+import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockIterator;
 import de.m3y3r.offlinewiki.pagestore.room.AppDatabase;
 import de.m3y3r.offlinewiki.pagestore.room.BlockEntity;
 
@@ -35,8 +35,8 @@ public class RoomBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public Iterator<BlockEntry> getBlockIterator(long startBlockPositionInBits) {
-		return new BlockIterator(db, xmlDumpId, startBlockPositionInBits);
+	public RoomBlockIterator getBlockIterator(long startBlockPositionInBits) {
+		return new RoomBlockIterator(db, xmlDumpId, startBlockPositionInBits);
 	}
 
 	@Override
@@ -61,12 +61,18 @@ public class RoomBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public void onNewBlock(EventObject event, long blockNo, long readCountBits) {
+	public void onNewBlock(EventObject event, long blockNo, long readCountBits, boolean isEndOfStream) {
 		BlockEntity entry = new BlockEntity();
 		entry.setBlockNo(blockNo);
 		entry.setXmlDumpId(xmlDumpId);
 		entry.setReadCountBits(readCountBits);
-		entry.setIndexState(BlockEntry.IndexState.INITIAL.ordinal());
+		int indexState;
+		if(isEndOfStream) {
+			indexState = BlockEntry.IndexState.FINISHED.ordinal();
+		} else {
+			indexState = BlockEntry.IndexState.INITIAL.ordinal();
+		}
+		entry.setIndexState(indexState);
 		entries.add(entry);
 		if(entries.size() > MAX_ENTRIES) {
 			flush();
@@ -90,11 +96,11 @@ public class RoomBlockController implements BlockController, BlockFinderEventLis
 	}
 }
 
-class BlockIterator implements Iterator<BlockEntry> {
+class RoomBlockIterator implements BlockIterator {
 
 	private Cursor cursor;
 
-	public BlockIterator(AppDatabase db, int xmpDumpId, long startBlockPositionInBits) {
+	public RoomBlockIterator(AppDatabase db, int xmpDumpId, long startBlockPositionInBits) {
 		this.cursor = db.getDao().getAllBlocksFrom(xmpDumpId, startBlockPositionInBits);
 	}
 
@@ -120,5 +126,10 @@ class BlockIterator implements Iterator<BlockEntry> {
 		} else {
 			return new BlockEntry(cursor.getLong(0), cursor.getLong(1), BlockEntry.IndexState.values()[cursor.getInt(2)]);
 		}
+	}
+
+	@Override
+	public void close() {
+		cursor.close();
 	}
 }

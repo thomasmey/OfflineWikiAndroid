@@ -20,14 +20,16 @@ public class RoomIndexAccess implements IndexAccess {
 
 	@Override
 	public List<String> getKeyAscending(int noMaxHits, String indexKey) {
-		return db.getDao().getTitleEntityByIndexKeyAscending(xmlDumpId, noMaxHits, indexKey)
-			.stream().map(TitleEntity::getTitle).collect(Collectors.toList());
+		throw new UnsupportedOperationException();
+//		return db.getDao().getTitleEntityByIndexKeyAscending(xmlDumpId, noMaxHits, indexKey)
+//			.stream().map(TitleEntity::getTitle).collect(Collectors.toList());
 	}
 
 	@Override
 	public List<String> getKeyAscendingLike(int maxReturnCount, String likeKey) {
-		return db.getDao().getTitleEntityByIndexKeyAscendingLike(xmlDumpId, maxReturnCount, likeKey)
-			.stream().map(TitleEntity::getTitle).collect(Collectors.toList());
+		throw new UnsupportedOperationException();
+//		return db.getDao().getTitleEntityByIndexKeyAscendingLike(xmlDumpId, maxReturnCount, likeKey)
+//			.stream().map(TitleEntity::getTitle).collect(Collectors.toList());
 	}
 
 	@Override

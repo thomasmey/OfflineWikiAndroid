@@ -20,10 +20,11 @@ import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockController;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockFinderEventListener;
 import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockEntry.IndexState;
+import de.m3y3r.offlinewiki.pagestore.bzip2.blocks.BlockIterator;
 
 public class FileBlockController implements BlockController, BlockFinderEventListener, Flushable, Closeable {
 
-	public static class FileBasedBlockIterator implements Iterator<BlockEntry> {
+	public static class FileBasedBlockIterator implements BlockIterator {
 		private DataInputStream in;
 		private BlockEntry next;
 
@@ -81,6 +82,14 @@ public class FileBlockController implements BlockController, BlockFinderEventLis
 				e.printStackTrace();
 			}
 		}
+
+		@Override
+		public void close() throws IOException {
+			if (in != null) {
+				in.close();
+				in = null;
+			}
+		}
 	}
 
 	private final List<BlockEntry> entries;
@@ -92,7 +101,7 @@ public class FileBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public void onNewBlock(EventObject event, long blockNo, long readCountBits) {
+	public void onNewBlock(EventObject event, long blockNo, long readCountBits, boolean isEndOfStream) {
 		BlockEntry entry = new BlockEntry(blockNo, readCountBits, null);
 		entries.add(entry);
 	}
@@ -124,7 +133,7 @@ public class FileBlockController implements BlockController, BlockFinderEventLis
 	}
 
 	@Override
-	public Iterator<BlockEntry> getBlockIterator(long startBlockPosInBits) {
+	public BlockIterator getBlockIterator(long startBlockPosInBits) {
 		return new FileBasedBlockIterator(blockFile);
 	}
 
@@ -155,6 +164,5 @@ public class FileBlockController implements BlockController, BlockFinderEventLis
 
 	@Override
 	public void setBlockFailed(long blockNo) {
-
 	}
 }

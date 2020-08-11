@@ -1,5 +1,6 @@
 package de.m3y3r.offlinewiki.pagestore.room;
 
+import androidx.paging.DataSource;
 import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Transaction;
@@ -17,10 +18,22 @@ import de.m3y3r.offlinewiki.Config;
 public abstract class AppDao {
 
 	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title >= :title ORDER BY title ASC LIMIT :noMaxHits")
-	public abstract List<TitleEntity> getTitleEntityByIndexKeyAscending(int xmlDumpId, int noMaxHits, String title);
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyInitial(int xmlDumpId, int noMaxHits, String title);
+
+	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title > :title ORDER BY title ASC LIMIT :noMaxHits")
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyAfter(int xmlDumpId, int noMaxHits, String title);
+
+	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title < :title ORDER BY title DESC LIMIT :noMaxHits")
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyBefore(int xmlDumpId, int noMaxHits, String title);
 
 	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title LIKE :title ORDER BY title ASC LIMIT :noMaxHits")
-	public abstract List<TitleEntity> getTitleEntityByIndexKeyAscendingLike(int xmlDumpId, int noMaxHits, String title);
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyLikeInitial(int xmlDumpId, int noMaxHits, String title);
+
+	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title LIKE :title AND title < :restartTitle ORDER BY title DESC LIMIT :noMaxHits")
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyLikeBefore(int xmlDumpId, int noMaxHits, String title, String restartTitle);
+
+	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title LIKE :title AND title > :restartTitle ORDER BY title ASC LIMIT :noMaxHits")
+	public abstract List<TitleEntity> getTitleEntityByIndexKeyLikeAfter(int xmlDumpId, int noMaxHits, String title, String restartTitle);
 
 	@Query("SELECT * FROM TitleEntity WHERE xmlDumpId = :xmlDumpId AND title = :title")
 	public abstract TitleEntity getTitle(int xmlDumpId, String title);

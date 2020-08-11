@@ -3,7 +3,7 @@ package de.m3y3r.offlinewiki.service;
 import android.app.job.JobParameters;
 import android.app.job.JobService;
 import androidx.room.Room;
-import android.preference.PreferenceManager;
+import androidx.preference.PreferenceManager;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
