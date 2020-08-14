@@ -87,7 +87,6 @@ public class BlockFinder implements Runnable {
 	}
 
 	private boolean findBlocksStream() throws IOException {
-		long byteCount = 0;
 		try (SplitFileInputStream in = new SplitFileInputStream(fileToScan, Config.getInstance().getSplitSize())){
 			in.seek(readCountBits / 8);
 			try(BufferedInputStream bin = new BufferedInputStream(in, (int) Math.pow(2, 22))) {
@@ -98,10 +97,6 @@ public class BlockFinder implements Runnable {
 
 					update(b);
 					b = bin.read();
-					byteCount++;
-					if(byteCount % 16_000_000 == 0) {
-						System.out.println("blockCount="+ blockCount);
-					}
 				}
 			}
 			return true;
@@ -177,10 +172,10 @@ public class BlockFinder implements Runnable {
 			readCountBits++;
 			int cb = (b >> bi) & 1;
 			currentMagic = currentMagic << 1 | cb;
-			if((currentMagic & 0xff_ff_ff_ff_ff_ffl) == COMPRESSED_MAGIC ||
-				(currentMagic & 0xff_ff_ff_ff_ff_ffl) == EOS_MAGIC) {
+			long v = (currentMagic & 0xff_ff_ff_ff_ff_ffl);
+			if(v == COMPRESSED_MAGIC || v == EOS_MAGIC) {
 				if(blockNo != restartBlockNo) {
-					fireEventNewBlock(blockNo, readCountBits - 48, ((currentMagic & 0xff_ff_ff_ff_ff_ffl) == EOS_MAGIC));
+					fireEventNewBlock(blockNo, readCountBits - 48, v == EOS_MAGIC);
 				}
 				blockNo++;
 			}

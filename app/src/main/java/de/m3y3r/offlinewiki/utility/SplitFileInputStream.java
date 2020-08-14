@@ -37,6 +37,22 @@ public class SplitFileInputStream extends InputStream {
 	}
 
 	@Override
+	public int read(byte[] b, int off, int len) throws IOException {
+		if(in == null) {
+			FileInputStream in = open(splitCount);
+			if(in == null) return -1;
+		}
+
+		int l = in.read(b, off, len);
+		if(l == -1) {
+			close();
+			splitCount++;
+			return read(b, off, len);
+		}
+		return l;
+	}
+
+	@Override
 	public int read() throws IOException {
 		if(in == null) {
 			FileInputStream in = open(splitCount);

@@ -34,6 +34,7 @@
 
         <activity
             android:name=".frontend.ScrollingActivity"
+            android:theme="@style/Theme.AppCompat"
             android:label="@string/title_activity_scrolling">
         </activity>
     </application>

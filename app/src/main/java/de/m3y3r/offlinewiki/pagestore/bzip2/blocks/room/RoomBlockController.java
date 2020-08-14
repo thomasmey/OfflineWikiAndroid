@@ -83,6 +83,9 @@ public class RoomBlockController implements BlockController, BlockFinderEventLis
 	private void flush() {
 		try {
 			db.getDao().insertAllBlockEntity(entries.toArray(new BlockEntity[0]));
+		} catch (android.database.sqlite.SQLiteConstraintException e) {
+			System.err.println("we have a duplicate= " + entries);
+			e.printStackTrace();
 		} finally {
 			entries.clear();
 		}
